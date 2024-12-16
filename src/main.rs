@@ -3,48 +3,70 @@ mod rpn;
 mod tree;
 mod dispatch_table;
 
-use tokenizer::tokenize;
-use rpn::to_rpn;
-use tree::build_tree;
-use dispatch_table::evaluate;
-
+use dioxus::prelude::*;
 use std::collections::HashMap;
-use std::io;
-
 
 fn main() {
+    // Launch the Dioxus app
+    launch(app);
+}
 
-    println!("Enter the operation you want done...\n");
-    let mut input = String::new();
-    io::stdin()
-        .read_line(&mut input)
-        .expect("failed to read input :(");
+// Define the Dioxus app as a component with no parameters
+fn app() -> Element {
+    // State for user input and evaluation log
+    let mut input = use_signal(|| "".to_string());
+    let mut log = use_signal(|| Vec::new());
+    let mut result = use_signal(|| None);
 
-    let input = input.trim();
-    
-    // Define the dispatch table explicitly
+    // Define the dispatch table
     let mut dispatch: HashMap<&str, Box<dyn Fn(f64, f64) -> f64>> = HashMap::new();
     dispatch.insert("+", Box::new(|a, b| a + b));
     dispatch.insert("-", Box::new(|a, b| a - b));
     dispatch.insert("*", Box::new(|a, b| a * b));
     dispatch.insert("/", Box::new(|a, b| a / b));
 
-    // Tokenize input
-    let tokens = tokenize(input);
-    // Convert to RPN
-    let rpn = to_rpn(tokens);
-    // Build the expression tree
-    let tree = build_tree(rpn);
-
-    // Log the evaluation steps
-    let mut log = Vec::new();
-    // Evaluate the expression tree
-    let result = evaluate(&tree, &dispatch, &mut log);
-
-    // Print the result and steps
-    println!("Result: {}", result);
-    println!("Steps:");
-    for step in log {
-        println!("{}", step);
+    rsx! {
+        div {
+            style: "display: flex; flex-direction: column; align-items: center; margin: 20px;",
+            h1 { "Rust Calculator" }
+    
+            // Input field
+            input {
+                style: "width: 300px; padding: 10px; margin-bottom: 10px;",
+                placeholder: "Enter your operation (e.g., 3 + 5 * (2 - 8))",
+                value: "{input.read()}",
+                oninput: move |e| input.set(e.value().clone()), // Safely update input signal
+            }
+    
+            // Calculate button
+            button {
+                style: "padding: 10px; margin-bottom: 20px;",
+                onclick: move |_| {
+                    let tokens = tokenizer::tokenize(&input.read()); // Read input signal
+                    let rpn = rpn::to_rpn(tokens);
+                    let tree = tree::build_tree(rpn);
+    
+                    let mut local_log = Vec::new();
+                    let local_result = dispatch_table::evaluate(&tree, &dispatch, &mut local_log);
+    
+                    result.set(Some(local_result)); // Update result
+                    log.set(local_log);             // Update log
+                },
+                "Calculate"
+            }
+    
+            // Result and Steps Display
+            div {
+                style: "width: 300px; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;",
+                if let Some(res) = result.read().as_ref() {
+                    p { "{res}" } // Interpolate result value
+                }
+                h3 { "Steps:" }
+                for step in log.read().iter() {
+                    p { "{step}" } // Interpolate log step
+                }
+            }
+        }
     }
+    
 }
