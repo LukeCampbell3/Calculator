@@ -1,40 +1,62 @@
-pub fn to_rpn(tokens: Vec<String>) -> Vec<String> {
-    let mut output = Vec::new();
-    let mut operators = Vec::new();
+use crate::tokenizer::Token;
 
-    let precedence = |op: &str| match op {
-        "+" | "-" => 1,
-        "*" | "/" => 2,
-        _ => 0,
-    };
+pub fn to_rpn(tokens: Vec<Token>) -> Result<Vec<Token>, String> {
+    let mut output = Vec::new();       // Final RPN output
+    let mut operators = Vec::new();    // Operator stack
 
     for token in tokens {
-        if token.chars().all(|c| c.is_digit(10) || c == '.') {
-            output.push(token);
-        } else if token == "(" {
-            operators.push(token);
-        } else if token == ")" {
-            while let Some(op) = operators.pop() {
-                if op == "(" {
-                    break;
-                }
-                output.push(op);
+        match token {
+            Token::Number(_) | Token::Variable(_) => {
+                output.push(token); // Push numbers and variables directly to the output
             }
-        } else {
-            while let Some(op) = operators.last() {
-                if precedence(op) >= precedence(&token) {
-                    output.push(operators.pop().unwrap());
-                } else {
-                    break;
+            Token::Operator(op) => {
+                while let Some(Token::Operator(top)) = operators.last() {
+                    if precedence(*top) >= precedence(op) {
+                        output.push(operators.pop().unwrap());
+                    } else {
+                        break;
+                    }
+                }
+                operators.push(Token::Operator(op));
+            }
+            Token::LeftParen => {
+                operators.push(Token::LeftParen);
+            }
+            Token::RightParen => {
+                while let Some(top) = operators.pop() {
+                    if top == Token::LeftParen {
+                        break;
+                    }
+                    output.push(top);
                 }
             }
-            operators.push(token);
+            Token::Equals => {
+                // Optional: Log when Equals is encountered, but don't require it
+                while let Some(op) = operators.pop() {
+                    output.push(op);
+                }
+                output.push(Token::Equals);
+            }
+            _ => {
+                return Err(format!("Unexpected token: {:?}", token));
+            }
         }
     }
 
+    // Flush any remaining operators to the output
     while let Some(op) = operators.pop() {
         output.push(op);
     }
 
-    output
+    Ok(output)
+}
+
+
+fn precedence(op: char) -> i32 {
+    match op {
+        '+' | '-' => 1,
+        '*' | '/' => 2,
+        '^' => 3,
+        _ => 0,
+    }
 }

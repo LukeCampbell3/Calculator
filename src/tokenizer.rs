@@ -1,45 +1,55 @@
-pub fn tokenize(input: &str) -> Vec<String> {
+#[derive(Debug, PartialEq)]
+pub enum Token {
+    Number(f64),
+    Operator(char),
+    LeftParen,
+    RightParen,
+    Variable(String), // Add a variable token
+    Equals
+}
+
+pub fn tokenize(input: &str) -> Result<Vec<Token>, String> {
     let mut tokens = Vec::new();
-    let mut current = String::new();
-    let chars: Vec<char> = input.chars().collect();
+    let mut chars = input.chars().peekable();
 
-    for (i, &c) in chars.iter().enumerate() {
-        if c.is_digit(10) || c == '.' {
-            current.push(c);
-        } else {
-            // Push the current number (if any) as a token
-            if !current.is_empty() {
-                tokens.push(current.clone());
-                current.clear();
-            }
-
-            if c == '(' {
-                // Check for implicit multiplication before an opening parenthesis
-                if let Some(last_token) = tokens.last() {
-                    if last_token.chars().last().unwrap().is_digit(10) || last_token == ")" {
-                        tokens.push("*".to_string());
+    while let Some(&c) = chars.peek() {
+        match c {
+            '0'..='9' | '.' => {
+                let mut num = String::new();
+                while let Some(&c) = chars.peek() {
+                    if c.is_digit(10) || c == '.' {
+                        num.push(c);
+                        chars.next();
+                    } else {
+                        break;
                     }
                 }
-                tokens.push("(".to_string());
-            } else if c == ')' {
-                tokens.push(")".to_string());
-
-                // Check for implicit multiplication after a closing parenthesis
-                if i + 1 < chars.len() && chars[i + 1].is_digit(10) {
-                    tokens.push("*".to_string());
-                }
-            } else if c.is_whitespace() {
-                continue; // Skip spaces
-            } else {
-                tokens.push(c.to_string());
+                tokens.push(Token::Number(num.parse::<f64>().unwrap()));
             }
+            '+' | '-' | '*' | '/' | '^' => {
+                tokens.push(Token::Operator(c));
+                chars.next();
+            }
+            '=' => {
+                tokens.push(Token::Equals);
+                chars.next();
+            }
+            '(' => {
+                tokens.push(Token::LeftParen);
+                chars.next();
+            }
+            ')' => {
+                tokens.push(Token::RightParen);
+                chars.next();
+            }
+            'X' | 'x' => {  // Support 'X' or 'x' as the variable
+                tokens.push(Token::Variable("X".to_string()));
+                chars.next();
+            }
+            ' ' => { chars.next(); } // Skip whitespace
+            _ => panic!("Unexpected character: {}", c),
         }
     }
 
-    // Push the last token if it exists
-    if !current.is_empty() {
-        tokens.push(current);
-    }
-
-    tokens
+    Ok(tokens)
 }
